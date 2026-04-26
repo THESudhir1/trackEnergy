@@ -1,0 +1,6 @@
+{
+  "name": "Urjavi Energy Tracker",
+  "description": "Full-stack application to track and analyze GRID and DG electricity usage from Urjavi API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
