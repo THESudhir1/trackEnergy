@@ -3,9 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": ".",
     "skipLibCheck": true,
     "allowJs": true,
-    "noEmit": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "strict": true
   }
 }

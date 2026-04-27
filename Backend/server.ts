@@ -1,8 +1,6 @@
-import { Length } from "./../node_modules/lightningcss/node/ast.d";
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-// import db from "./db.js";
 import { fetchEnergyData } from "./services/scraper.js";
 import { supabase } from "./utils/supabase";
 import dns from "node:dns";
