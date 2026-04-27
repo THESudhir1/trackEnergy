@@ -14,9 +14,10 @@ import {
   TrendingUp,
   AlertCircle,
   Database,
+  Receipt,
 } from "lucide-react";
 import { format } from "date-fns";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -40,6 +41,7 @@ interface Summary {
   total_grid: number;
   total_dg: number;
   current_balance: number;
+  day_charges: number;
   last_sync: string | null;
 }
 
@@ -49,6 +51,9 @@ interface HistoryDaily {
   total_dg: number;
   daily_balance: number;
   closing_balance: number;
+  opening_balance: number | null;
+  daily_charge: number | null;
+
 }
 
 export default function App() {
@@ -126,6 +131,17 @@ export default function App() {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleString();
+  };
+
+  const getTrend = (current: number, previous?: number) => {
+    if (previous == null) return "neutral";
+    if (current > previous) return "up";
+    if (current < previous) return "down";
+    return "neutral";
   };
 
   useEffect(() => {
@@ -249,37 +265,57 @@ export default function App() {
           )}
           {activeTab === "dashboard" ? (
             <>
-              {/* Stats Grid */}
               <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Grid Usage */}
                 <StatCard
                   title="Main Grid Usage"
-                  value={summary?.total_grid?.toFixed(2) || "0.00"}
+                  value={summary?.total_grid?.toFixed(2) ?? "0.00"}
                   unit="kWh"
                   subtitle="Today's total usage"
                   icon={<Zap className="w-5 h-5" />}
-                  progress={65}
+                  progress={
+                    summary?.total_grid
+                      ? Math.min(summary.total_grid * 10, 100)
+                      : 0
+                  }
                   color="emerald"
                 />
+
+                {/* DG Usage */}
                 <StatCard
                   title="DG Backup Usage"
-                  value={summary?.total_dg?.toFixed(2) || "0.00"}
+                  value={summary?.total_dg?.toFixed(2) ?? "0.00"}
                   unit="kWh"
                   subtitle="Consumption today"
                   icon={<Battery className="w-5 h-5" />}
-                  progress={12}
+                  progress={
+                    summary?.total_dg ? Math.min(summary.total_dg * 10, 100) : 0
+                  }
                   color="amber"
                 />
+
+                <StatCard
+                  title="Today's Charges"
+                  value={`₹${summary?.day_charges?.toFixed(2) ?? "0.00"}`}
+                  unit=""
+                  subtitle="Energy cost today"
+                  icon={<Receipt className="w-5 h-5" />}
+                  progress={
+                    summary?.day_charges
+                      ? Math.min(summary.day_charges * 5, 100)
+                      : 0
+                  }
+                  color="rose"
+                />
+
+                {/* Balance */}
                 <StatCard
                   title="Current Balance"
-                  value={`₹${summary?.current_balance?.toFixed(0) || "0"}`}
-                  unit={
-                    summary?.current_balance != null
-                      ? `.${summary.current_balance.toFixed(2).split(".")[1]}`
-                      : ".00"
-                  }
+                  value={`₹${summary?.current_balance?.toFixed(2) ?? "0.00"}`}
+                  unit="" // ❌ no need for split decimal hack
                   subtitle={
                     summary?.last_sync
-                      ? `Last sync: ${summary.last_sync}`
+                      ? `Updated: ${new Date(summary.last_sync).toLocaleString()}`
                       : "No data yet"
                   }
                   icon={<Wallet className="w-5 h-5" />}
@@ -288,9 +324,9 @@ export default function App() {
                 />
               </section>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Logs Table */}
-                <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col overflow-hidden shadow-xl">
+              <div className="">
+                <div className=" bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col overflow-hidden shadow-xl">
+                  {/* Header */}
                   <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
                     <div className="flex items-center gap-2">
                       <History className="w-4 h-4 text-emerald-500" />
@@ -299,16 +335,19 @@ export default function App() {
                       </h3>
                     </div>
                     <span className="text-[10px] text-zinc-600 font-mono uppercase">
-                      Last 100 Syncs
+                      Last {logs.length} Syncs
                     </span>
                   </div>
+
+                  {/* Table */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
+                      {/* Table Head */}
                       <thead>
                         <tr className="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800 bg-zinc-950/20">
                           <th className="px-6 py-3 font-semibold">Sync Time</th>
                           <th className="px-6 py-3 font-semibold">
-                            Sync Time From Urjavi
+                            Device Time
                           </th>
                           <th className="px-6 py-3 font-semibold">
                             Grid (kWh)
@@ -317,76 +356,126 @@ export default function App() {
                           <th className="px-6 py-3 font-semibold text-right">
                             Balance
                           </th>
+                          <th className="px-6 py-3 font-semibold text-right">
+                            Charge (₹)
+                          </th>
+                          <th className="px-6 py-3 font-semibold text-right">
+                            Gap (hrs)
+                          </th>
                         </tr>
                       </thead>
+
+                      {/* Table Body */}
                       <tbody className="text-[11px] font-mono divide-y divide-zinc-800/50">
                         <AnimatePresence mode="popLayout">
-                          {logs.map((log) => (
-                            <motion.tr
-                              key={log.id}
-                              className="hover:bg-zinc-800/40 transition-colors group border-b border-zinc-800/30"
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                            >
-                              <td className="px-6 py-4">
-                                <span className="text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                                  {log.sync_time}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                                  {log.syncat}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-zinc-300">
-                                {log.grid.toFixed(2)}
-                              </td>
-                              <td className="px-6 py-4 text-zinc-300">
-                                {log.dg > 0 ? (
-                                  <span className="text-amber-500/80">
-                                    {log.dg.toFixed(2)}
+                          {logs.map((log, index) => {
+                            const prev = logs[index + 1];
+
+                            const gridTrend = getTrend(log.grid, prev?.grid);
+
+                            return (
+                              <motion.tr
+                                key={log.id}
+                                className="hover:bg-zinc-800/40 transition-colors group border-b border-zinc-800/30"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                              >
+                                {/* Sync Time */}
+                                <td className="px-6 py-4">
+                                  <span className="text-zinc-400 group-hover:text-zinc-200">
+                                    {formatDate(log.sync_time)}
                                   </span>
-                                ) : (
-                                  log.dg.toFixed(2)
-                                )}
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <span
-                                  className={cn(
-                                    "font-bold",
-                                    log.current_balance < 100
-                                      ? "text-red-500"
-                                      : "text-white",
+                                </td>
+
+                                {/* Device Time */}
+                                <td className="px-6 py-4">
+                                  <span className="text-zinc-500">
+                                    {formatDate(log.syncat)}
+                                  </span>
+                                </td>
+
+                                {/* Grid */}
+                                <td className="px-6 py-4 text-zinc-300 flex items-center gap-1">
+                                  {log.grid.toFixed(2)}
+                                  {gridTrend === "up" && (
+                                    <span className="text-red-500">↑</span>
                                   )}
-                                >
-                                  ₹{log.current_balance?.toFixed(2)}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <span
-                                  className={cn(
-                                    "font-bold",
-                                    log.usage_charge > 10
-                                      ? "text-red-500"
-                                      : "text-white",
+                                  {gridTrend === "down" && (
+                                    <span className="text-green-500">↓</span>
                                   )}
-                                >
-                                  ₹{log.usage_charge?.toFixed(2)}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <span
-                                  className={cn("font-bold", "text-red-500")}
-                                >
-                                  ₹{log.hours_gap?.toFixed(2)}
-                                </span>
-                              </td>
-                            </motion.tr>
-                          ))}
+                                </td>
+
+                                {/* DG */}
+                                <td className="px-6 py-4">
+                                  {log.dg > 0 ? (
+                                    <span className="text-amber-500 font-semibold">
+                                      {log.dg.toFixed(2)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-zinc-500">0.00</span>
+                                  )}
+                                </td>
+
+                                {/* Balance */}
+                                <td className="px-6 py-4 text-right">
+                                  <span
+                                    className={cn(
+                                      "font-bold",
+                                      log.current_balance < 100
+                                        ? "text-red-500"
+                                        : log.current_balance < 200
+                                          ? "text-yellow-400"
+                                          : "text-white",
+                                    )}
+                                  >
+                                    ₹{log.current_balance.toFixed(2)}
+                                  </span>
+                                </td>
+
+                                {/* Usage Charge */}
+                                <td className="px-6 py-4 text-right">
+                                  <span
+                                    className={cn(
+                                      "font-semibold",
+                                      log.usage_charge > 15
+                                        ? "text-red-500"
+                                        : log.usage_charge > 8
+                                          ? "text-yellow-400"
+                                          : "text-green-400",
+                                    )}
+                                  >
+                                    {log.usage_charge !== null
+                                      ? log.usage_charge?.toFixed(2)
+                                      : "-"}
+                                  </span>
+                                </td>
+
+                                {/* Hours Gap */}
+                                <td className="px-6 py-4 text-right">
+                                  <span
+                                    className={cn(
+                                      "font-semibold",
+                                      log.hours_gap > 12
+                                        ? "text-red-500"
+                                        : log.hours_gap > 6
+                                          ? "text-yellow-400"
+                                          : "text-green-400",
+                                    )}
+                                  >
+                                    {log.hours_gap !== null
+                                      ? log.hours_gap?.toFixed(2)
+                                      : "-"}
+                                  </span>
+                                </td>
+                              </motion.tr>
+                            );
+                          })}
+
+                          {/* Empty State */}
                           {logs.length === 0 && (
                             <tr>
                               <td
-                                colSpan={4}
+                                colSpan={7}
                                 className="px-6 py-20 text-center"
                               >
                                 <div className="flex flex-col items-center gap-3 opacity-20">
@@ -403,159 +492,137 @@ export default function App() {
                     </table>
                   </div>
                 </div>
-
-                {/* Daily Summary / Insights */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-xl h-fit">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-widest border-b border-zinc-800 pb-4 mb-6 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-emerald-500" />
-                    Daily Summary
-                  </h3>
-                  <div className="space-y-8">
-                    <div>
-                      <div className="flex justify-between text-[11px] mb-2 font-mono">
-                        <span className="text-zinc-500 uppercase">
-                          Total Grid Today
-                        </span>
-                        <span className="text-emerald-400 font-bold">
-                          {summary?.total_grid?.toFixed(2) || "0.00"} kWh
-                        </span>
-                      </div>
-                      <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{
-                            width: `${Math.min(100, (summary?.total_grid || 0) * 5)}%`,
-                          }}
-                          className="h-full bg-emerald-500/60"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-[11px] mb-2 font-mono">
-                        <span className="text-zinc-500 uppercase">
-                          Total DG Today
-                        </span>
-                        <span className="text-amber-400 font-bold">
-                          {summary?.total_dg?.toFixed(2) || "0.00"} kWh
-                        </span>
-                      </div>
-                      <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{
-                            width: `${Math.min(100, (summary?.total_dg || 0) * 10)}%`,
-                          }}
-                          className="h-full bg-amber-500/60"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-2">
-                      <div className="bg-zinc-950/50 rounded-xl p-4 border border-zinc-800/50 space-y-4">
-                        <div>
-                          <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-2">
-                            Efficiency Insight
-                          </p>
-                          <p className="text-[11px] leading-relaxed text-zinc-400">
-                            Today,{" "}
-                            <span className="text-emerald-400 font-bold">
-                              {summary &&
-                              summary.total_grid + summary.total_dg > 0
-                                ? (
-                                    (summary.total_grid /
-                                      (summary.total_grid + summary.total_dg)) *
-                                    100
-                                  ).toFixed(1)
-                                : "0"}
-                              %
-                            </span>{" "}
-                            of your energy consumption was sourced via the
-                            primary grid.
-                          </p>
-                        </div>
-                        {summary?.current_balance &&
-                          summary.current_balance < 200 && (
-                            <div className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-                              <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-                              <span className="text-[10px] font-bold text-red-500 uppercase">
-                                Low Balance Alert
-                              </span>
-                            </div>
-                          )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </>
           ) : (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col overflow-hidden shadow-xl max-w-4xl mx-auto">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col overflow-hidden shadow-xl max-w-6xl mx-auto">
+              {/* Header */}
               <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
                 <div className="flex items-center gap-2">
                   <History className="w-4 h-4 text-emerald-500" />
                   <h3 className="text-xs font-bold text-white uppercase tracking-widest">
-                    Daily History Usage
+                    Daily Energy History
                   </h3>
                 </div>
                 <span className="text-[10px] text-zinc-600 font-mono uppercase">
-                  Last 30 Days
+                  Last {history.length} Days
                 </span>
               </div>
+
+              {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
+                  {/* Head */}
                   <thead>
                     <tr className="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800 bg-zinc-950/20">
                       <th className="px-6 py-4 font-semibold">Date</th>
                       <th className="px-6 py-4 font-semibold text-right">
-                        Grid Usage (kWh)
+                        Grid (kWh)
                       </th>
                       <th className="px-6 py-4 font-semibold text-right">
-                        DG Usage (kWh)
+                        DG (kWh)
                       </th>
                       <th className="px-6 py-4 font-semibold text-right">
-                        Closing Balance
+                        Opening
+                      </th>
+                      <th className="px-6 py-4 font-semibold text-right">
+                        Closing
+                      </th>
+                      <th className="px-6 py-4 font-semibold text-right">
+                        Charge (₹)
                       </th>
                     </tr>
                   </thead>
+
+                  {/* Body */}
                   <tbody className="text-[12px] font-mono divide-y divide-zinc-800/50">
                     <AnimatePresence mode="popLayout">
-                      {history.map((day) => (
-                        <motion.tr
-                          key={day.date}
-                          className="hover:bg-zinc-800/40 transition-colors group border-b border-zinc-800/30"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                        >
-                          <td className="px-6 py-4 text-zinc-400 group-hover:text-zinc-200 transition-colors font-sans font-medium">
-                            {format(new Date(day.date), "MMM dd, yyyy")}
-                          </td>
-                          <td className="px-6 py-4 text-emerald-500/80 text-right">
-                            {day.total_grid > 0
-                              ? `+${day.total_grid.toFixed(2)}`
-                              : "0.00"}
-                          </td>
-                          <td className="px-6 py-4 text-amber-500/80 text-right">
-                            {day.total_dg > 0
-                              ? `+${day.total_dg.toFixed(2)}`
-                              : "0.00"}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <span
-                              className={cn(
-                                "font-bold",
-                                day.closing_balance < 100
-                                  ? "text-red-500"
-                                  : "text-white",
-                              )}
-                            >
-                              ₹{day.closing_balance.toFixed(2)}
-                            </span>
-                          </td>
-                        </motion.tr>
-                      ))}
+                      {history.map((day, index) => {
+                        const prev = history[index + 1];
+
+                        const balanceTrend = getTrend(
+                          day.closing_balance,
+                          prev?.closing_balance,
+                        );
+
+                        return (
+                          <motion.tr
+                            key={day.date}
+                            className="hover:bg-zinc-800/40 transition-colors group border-b border-zinc-800/30"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                          >
+                            {/* Date */}
+                            <td className="px-6 py-4 text-zinc-400 group-hover:text-zinc-200 font-sans font-medium">
+                              {format(new Date(day.date), "MMM dd, yyyy")}
+                            </td>
+
+                            {/* Grid */}
+                            <td className="px-6 py-4 text-right text-emerald-400">
+                              {day.total_grid > 0
+                                ? `+${day.total_grid.toFixed(2)}`
+                                : "0.00"}
+                            </td>
+
+                            {/* DG */}
+                            <td className="px-6 py-4 text-right text-amber-400">
+                              {day.total_dg > 0
+                                ? `+${day.total_dg.toFixed(2)}`
+                                : "0.00"}
+                            </td>
+
+                            {/* Opening Balance */}
+                            <td className="px-6 py-4 text-right text-zinc-400">
+                              { day.opening_balance !== null ? day.opening_balance.toFixed(2) : "-"}
+                            </td>
+
+                            {/* Closing Balance + Trend */}
+                            <td className="px-6 py-4 text-right">
+                              <span
+                                className={cn(
+                                  "font-bold inline-flex items-center gap-1",
+                                  day.closing_balance < 100
+                                    ? "text-red-500"
+                                    : day.closing_balance < 200
+                                      ? "text-yellow-400"
+                                      : "text-white",
+                                )}
+                              >
+                                { day.closing_balance !== null ? day.closing_balance.toFixed(2) : "-"}
+                                {balanceTrend === "up" && (
+                                  <span className="text-green-400">↑</span>
+                                )}
+                                {balanceTrend === "down" && (
+                                  <span className="text-red-500">↓</span>
+                                )}
+                              </span>
+                            </td>
+
+                            {/* Daily Charge */}
+                            <td className="px-6 py-4 text-right">
+                              { day.daily_charge !== null
+                                && <span
+                                      className={cn(
+                                        "font-semibold",
+                                        day.daily_charge > 20
+                                          ? "text-red-500"
+                                          : day.daily_charge > 10
+                                            ? "text-yellow-400"
+                                            : "text-green-400",
+                                      )}
+                                    > 
+                                { day.daily_charge !== null ? day.daily_charge.toFixed(2) : "-"}
+                              </span>
+                            }
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
+
+                      {/* Empty State */}
                       {history.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-6 py-20 text-center">
+                          <td colSpan={6} className="px-6 py-20 text-center">
                             <div className="flex flex-col items-center gap-3 opacity-20">
                               <Database className="w-10 h-10" />
                               <p className="font-mono text-[10px] uppercase tracking-[0.2em]">

@@ -5,7 +5,7 @@ import express from "express";
 // import db from "./db.js";
 import { fetchEnergyData } from "./services/scraper.js";
 import { supabase } from "./utils/supabase";
-import dns from 'node:dns';
+import dns from "node:dns";
 
 async function startServer() {
   const app = express();
@@ -52,83 +52,66 @@ async function startServer() {
   // GET /fetch-data
   // =========================
   app.get("/api/fetch-data", async (req, res) => {
-    const token = process.env.URJAVI_TOKEN;
     const secret = req.query.secret;
 
-    // 1. Security Check
+    // 1. Security check
     if (secret !== process.env.CRON_SECRET) {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
+    const token = process.env.URJAVI_TOKEN;
     if (!token) {
       return res.status(500).json({ error: "URJAVI_TOKEN not configured" });
     }
 
-    try {
-      const data = await fetchEnergyData(token);
+    // ✅ 2. Respond immediately (IMPORTANT for cron reliability)
+    res.status(200).json({ success: true, message: "Cron triggered" });
 
-      if (!data) {
-        return res.status(500).json({ error: "Failed to extract data" });
-      }
+    // ✅ 3. Run actual job in background
+    setImmediate(async () => {
+      try {
+        console.log("Cron job started...");
 
-      // 2. Format local arrival time (Full Date + Time)
-      // Results in: "YYYY-MM-DD HH:MM:SS"
-      const arrivalTime = new Date()
-        .toLocaleString("sv-SE", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        })
-        .replace(",", "");
+        const data = await fetchEnergyData(token);
 
-      // 3. Insert into Supabase
-      // .upsert handles the "Duplicate entry found" logic using the UNIQUE constraint
-      const { data: insertData, error: dbError } = await supabase
-        .from("energy_logs")
-        .upsert(
+        if (!data) {
+          console.error("No data received from fetchEnergyData");
+          return;
+        }
+
+        // ✅ Better timestamp (ISO → DB safe)
+        const arrivalTime = new Date()
+          .toISOString()
+          .slice(0, 19)
+          .replace("T", " ");
+
+        // ✅ 4. Insert into Supabase
+        const { error: dbError } = await supabase.from("energy_logs").upsert(
           {
             mid: data.mid,
             flat_no: data.flat_no,
             grid: data.grid,
             dg: data.dg,
             balance: data.balance,
-            syncat: data.syncat, // Third-party timestamp
-            sync_time: arrivalTime, // Server arrival timestamp (Full date)
+            syncat: data.syncat,
+            sync_time: arrivalTime,
           },
           {
-            onConflict: "mid, syncat", // Matches your UNIQUE constraint
-            ignoreDuplicates: true, // Prevents overwriting if it exists
+            onConflict: "mid, syncat",
+            ignoreDuplicates: true,
           },
-        )
-        .select(); // Returns the inserted row
+        );
 
-      if (dbError) {
-        return res.status(500).json({
-          error: "Database error",
-          details: dbError.message,
-        });
+        if (dbError) {
+          console.error("DB Error:", dbError.message);
+          return;
+        }
+
+        console.log("Cron job completed successfully");
+      } catch (error) {
+        console.error("Cron execution error:", error);
       }
-
-      // 4. Response
-      const isNewEntry = insertData && insertData.length > 0;
-
-      res.json({
-        success: true,
-        data,
-        inserted: !!isNewEntry,
-        message: isNewEntry
-          ? "Data saved successfully to Supabase"
-          : "Duplicate entry (mid + syncat) already exists, skipped saving",
-      });
-    } catch (error) {
-      res.status(500).json({
-        error: "Internal server error",
-        details: error instanceof Error ? error.message : String(error),
-      });
-    }
+    });
   });
 
   app.get("/api/fetch", async (req, res) => {
@@ -145,7 +128,8 @@ async function startServer() {
       console.log(`✅ DNS Resolved: ${address}`);
     } catch (e) {
       console.error(
-        "❌ DNS Lookup failed. The domain cannot be found from this network.", e
+        "❌ DNS Lookup failed. The domain cannot be found from this network.",
+        e,
       );
     }
 
