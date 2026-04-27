@@ -2,7 +2,7 @@ import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import { fetchEnergyData } from "./services/scraper.js";
-import { supabase } from "./utils/supabase";
+import { supabase } from "./utils/supabase.js";
 import dns from "node:dns";
 
 async function startServer() {
