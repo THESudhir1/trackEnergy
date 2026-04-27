@@ -53,7 +53,15 @@ interface HistoryDaily {
   closing_balance: number;
   opening_balance: number | null;
   daily_charge: number | null;
+}
 
+interface EnergyApiResponse {
+  grid: number;
+  dg: number;
+  balance: number;
+  syncat: string;
+  mid: string;
+  flat_no: string;
 }
 
 export default function App() {
@@ -66,7 +74,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const BASE_URL = "http://localhost:8080";
+  const BASE_URL = "https://trackenergy.onrender.com";
   const [time, setTime] = useState("");
   const [current_balance, setCurrent_balance] = useState("");
 
@@ -133,10 +141,6 @@ export default function App() {
     }
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleString();
-  };
-
   const getTrend = (current: number, previous?: number) => {
     if (previous == null) return "neutral";
     if (current > previous) return "up";
@@ -145,7 +149,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    getEnergyData();
+    (syncEnergyData(), getEnergyData());
   }, []);
 
   if (loading) {
@@ -162,17 +166,17 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans selection:bg-emerald-500 selection:text-zinc-950 flex overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-20 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-8 space-y-8 flex-shrink-0">
-        <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center text-zinc-950 font-bold text-xl shadow-lg shadow-emerald-500/20">
+    <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans selection:bg-emerald-500 selection:text-zinc-950 flex flex-col md:flex-row overflow-hidden">
+      {/* Sidebar - Converts to Bottom Nav on Mobile */}
+      <aside className="w-full h-16 md:w-20 md:h-screen bg-zinc-900 border-t md:border-t-0 md:border-r border-zinc-800 flex flex-row md:flex-col items-center py-0 md:py-8 space-y-0 md:space-y-8 flex-shrink-0 fixed bottom-0 md:relative z-50 justify-around md:justify-start">
+        <div className="hidden md:flex w-10 h-10 bg-emerald-500 rounded-lg items-center justify-center text-zinc-950 font-bold text-xl shadow-lg shadow-emerald-500/20">
           U
         </div>
-        <nav className="flex flex-col space-y-6">
+        <nav className="flex flex-row md:flex-col space-x-8 md:space-x-0 md:space-y-6">
           <div
             onClick={() => setActiveTab("dashboard")}
             className={cn(
-              "p-2 rounded-lg cursor-pointer transition-colors",
+              "p-3 md:p-2 rounded-lg cursor-pointer transition-colors",
               activeTab === "dashboard"
                 ? "text-emerald-400 bg-zinc-800/50"
                 : "text-zinc-600 hover:text-zinc-300",
@@ -183,7 +187,7 @@ export default function App() {
           <div
             onClick={() => setActiveTab("history")}
             className={cn(
-              "p-2 rounded-lg cursor-pointer transition-colors",
+              "p-3 md:p-2 rounded-lg cursor-pointer transition-colors",
               activeTab === "history"
                 ? "text-emerald-400 bg-zinc-800/50"
                 : "text-zinc-600 hover:text-zinc-300",
@@ -195,51 +199,51 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="h-20 px-8 flex items-center justify-between border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-50">
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">
+      <div className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
+        {/* Header - Stacks on Mobile */}
+        <header className="min-h-20 h-auto md:h-20 px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-center justify-between gap-4 border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-40">
+          <div className="text-center md:text-left w-full md:w-auto">
+            <h1 className="text-lg md:text-xl font-bold text-white tracking-tight">
               Sudhir's Urja Track Dashboard
             </h1>
             <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">
-              {logs[0]
-                ? `MID: ${logs[0].mid} | Flat: ${logs[0].flat_no}`
-                : "Waiting for connection..."}
+              {logs[0] ? "MID: 71414 | Flat: 203" : "Waiting for connection..."}
             </p>
           </div>
-          <div className="flex items-center space-x-6">
-            <div className="flex flex-col justify-end items-end text-right">
+
+          <div className="flex flex-wrap items-center justify-center md:justify-end gap-4 md:gap-6 w-full md:w-auto">
+            <div className="flex flex-col justify-center items-center md:items-end text-center md:text-right">
               <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">
-                Current Balance
+                Balance
               </span>
-              <span className="text-xs text-emerald-400 flex items-center justify-end font-medium">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2 animate-pulse"></span>
+              <span className="text-xs text-emerald-400 flex items-center font-medium">
                 {current_balance}
               </span>
             </div>
-            <div className="flex flex-col justify-end items-end text-right">
+
+            <div className="hidden sm:flex flex-col justify-center items-center md:items-end text-center md:text-right">
               <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">
                 System Time
               </span>
-              <span className="text-xs text-emerald-400 flex items-center justify-end font-medium">
-                {/* <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2 animate-pulse"></span> */}
+              <span className="text-xs text-emerald-400 font-medium">
                 {time}
               </span>
             </div>
-            <div className="flex flex-col text-right">
+
+            <div className="hidden lg:flex flex-col text-right">
               <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">
                 System Status
               </span>
               <span className="text-xs text-emerald-400 flex items-center justify-end font-medium">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2 animate-pulse"></span>
-                LIVE • Syncing every 1h
+                LIVE
               </span>
             </div>
+
             <button
               onClick={syncEnergyData}
               disabled={refreshing}
-              className="px-4 py-2 bg-zinc-800 border border-zinc-700 text-[10px] text-white rounded font-bold hover:bg-zinc-700 transition-all uppercase tracking-widest disabled:opacity-50 flex items-center gap-2"
+              className="px-3 py-2 bg-zinc-800 border border-zinc-700 text-[9px] md:text-[10px] text-white rounded font-bold hover:bg-zinc-700 transition-all uppercase tracking-widest disabled:opacity-50 flex items-center gap-2"
             >
               <RefreshCw
                 className={cn(
@@ -247,12 +251,14 @@ export default function App() {
                   refreshing && "animate-spin text-emerald-400",
                 )}
               />
-              {refreshing ? "Syncing..." : "Manual Sync"}
+              <span className="whitespace-nowrap">
+                {refreshing ? "Syncing..." : "Sync"}
+              </span>
             </button>
           </div>
         </header>
 
-        <main className="p-8 flex-1 overflow-y-auto space-y-8">
+        <main className="p-4 md:p-8 flex-1 overflow-y-auto space-y-6 md:space-y-8">
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -265,10 +271,9 @@ export default function App() {
           )}
           {activeTab === "dashboard" ? (
             <>
-              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Grid Usage */}
+              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <StatCard
-                  title="Main Grid Usage"
+                  title="Main Grid"
                   value={summary?.total_grid?.toFixed(2) ?? "0.00"}
                   unit="kWh"
                   subtitle="Today's total usage"
@@ -281,9 +286,8 @@ export default function App() {
                   color="emerald"
                 />
 
-                {/* DG Usage */}
                 <StatCard
-                  title="DG Backup Usage"
+                  title="DG Backup"
                   value={summary?.total_dg?.toFixed(2) ?? "0.00"}
                   unit="kWh"
                   subtitle="Consumption today"
@@ -305,18 +309,17 @@ export default function App() {
                       ? Math.min(summary.day_charges * 5, 100)
                       : 0
                   }
-                  color="rose"
+                  color="amber"
                 />
 
-                {/* Balance */}
                 <StatCard
                   title="Current Balance"
-                  value={`₹${summary?.current_balance?.toFixed(2) ?? "0.00"}`}
-                  unit="" // ❌ no need for split decimal hack
+                  value={`₹${current_balance ?? "0.00"}`}
+                  unit=""
                   subtitle={
                     summary?.last_sync
-                      ? `Updated: ${new Date(summary.last_sync).toLocaleString()}`
-                      : "No data yet"
+                      ? `Sync: ${format(new Date(summary.last_sync), "HH:mm")}`
+                      : "No data"
                   }
                   icon={<Wallet className="w-5 h-5" />}
                   isHighlighted
@@ -324,169 +327,130 @@ export default function App() {
                 />
               </section>
 
-              <div className="">
-                <div className=" bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col overflow-hidden shadow-xl">
-                  {/* Header */}
-                  <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+              <div className="pb-4">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col overflow-hidden shadow-xl">
+                  <div className="px-4 md:px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
                     <div className="flex items-center gap-2">
                       <History className="w-4 h-4 text-emerald-500" />
-                      <h3 className="text-xs font-bold text-white uppercase tracking-widest">
+                      <h3 className="text-[10px] md:text-xs font-bold text-white uppercase tracking-widest">
                         Energy Event Logs
                       </h3>
                     </div>
-                    <span className="text-[10px] text-zinc-600 font-mono uppercase">
-                      Last {logs.length} Syncs
-                    </span>
                   </div>
 
-                  {/* Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      {/* Table Head */}
+                  <div className="overflow-x-auto scrollbar-hide">
+                    <table className="w-full text-left border-collapse min-w-[600px]">
                       <thead>
                         <tr className="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800 bg-zinc-950/20">
-                          <th className="px-6 py-3 font-semibold">Sync Time</th>
+                          <th className="px-4 md:px-6 py-3 font-semibold">
+                            Sync Time
+                          </th>
                           <th className="px-6 py-3 font-semibold">
                             Device Time
                           </th>
-                          <th className="px-6 py-3 font-semibold">
+                          <th className="px-4 md:px-6 py-3 font-semibold">
                             Grid (kWh)
                           </th>
-                          <th className="px-6 py-3 font-semibold">DG (kWh)</th>
-                          <th className="px-6 py-3 font-semibold text-right">
+                          <th className="px-4 md:px-6 py-3 font-semibold">
+                            DG (kWh)
+                          </th>
+                          <th className="px-4 md:px-6 py-3 font-semibold text-right">
                             Balance
                           </th>
-                          <th className="px-6 py-3 font-semibold text-right">
+                          <th className="px-4 md:px-6 py-3 font-semibold text-right">
                             Charge (₹)
-                          </th>
-                          <th className="px-6 py-3 font-semibold text-right">
-                            Gap (hrs)
                           </th>
                         </tr>
                       </thead>
 
-                      {/* Table Body */}
                       <tbody className="text-[11px] font-mono divide-y divide-zinc-800/50">
                         <AnimatePresence mode="popLayout">
                           {logs.map((log, index) => {
                             const prev = logs[index + 1];
-
                             const gridTrend = getTrend(log.grid, prev?.grid);
 
                             return (
                               <motion.tr
                                 key={log.id}
-                                className="hover:bg-zinc-800/40 transition-colors group border-b border-zinc-800/30"
+                                className="hover:bg-zinc-800/40 transition-colors group"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                               >
-                                {/* Sync Time */}
-                                <td className="px-6 py-4">
-                                  <span className="text-zinc-400 group-hover:text-zinc-200">
-                                    {formatDate(log.sync_time)}
-                                  </span>
+                                <td className="px-4 md:px-6 py-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-zinc-300">
+                                      {format(
+                                        new Date(log.syncat),
+                                        "HH:mm:ss",
+                                      )}
+                                    </span>
+                                    <span className="text-[9px] text-zinc-600">
+                                      {format(
+                                        new Date(log.syncat),
+                                        "MMM dd",
+                                      )}
+                                    </span>
+                                  </div>
                                 </td>
-
-                                {/* Device Time */}
-                                <td className="px-6 py-4">
-                                  <span className="text-zinc-500">
-                                    {formatDate(log.syncat)}
-                                  </span>
+                                <td className="px-4 md:px-6 py-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-zinc-300">
+                                      {format(
+                                        new Date(log.sync_time),
+                                        "HH:mm:ss",
+                                      )}
+                                    </span>
+                                    <span className="text-[9px] text-zinc-600">
+                                      {format(
+                                        new Date(log.sync_time),
+                                        "MMM dd",
+                                      )}
+                                    </span>
+                                  </div>
                                 </td>
-
-                                {/* Grid */}
-                                <td className="px-6 py-4 text-zinc-300 flex items-center gap-1">
+                                
+                                <td className="px-4 md:px-6 py-4 text-zinc-300">
                                   {log.grid.toFixed(2)}
                                   {gridTrend === "up" && (
-                                    <span className="text-red-500">↑</span>
+                                    <span className="text-red-500 ml-1">↑</span>
                                   )}
                                   {gridTrend === "down" && (
-                                    <span className="text-green-500">↓</span>
-                                  )}
-                                </td>
-
-                                {/* DG */}
-                                <td className="px-6 py-4">
-                                  {log.dg > 0 ? (
-                                    <span className="text-amber-500 font-semibold">
-                                      {log.dg.toFixed(2)}
+                                    <span className="text-green-500 ml-1">
+                                      ↓
                                     </span>
-                                  ) : (
-                                    <span className="text-zinc-500">0.00</span>
                                   )}
                                 </td>
-
-                                {/* Balance */}
-                                <td className="px-6 py-4 text-right">
+                                <td className="px-4 md:px-6 py-4">
+                                  <span
+                                    className={
+                                      log.dg > 0
+                                        ? "text-amber-500"
+                                        : "text-zinc-500"
+                                    }
+                                  >
+                                    {log.dg.toFixed(2)}
+                                  </span>
+                                </td>
+                                <td className="px-4 md:px-6 py-4 text-right">
                                   <span
                                     className={cn(
                                       "font-bold",
-                                      log.current_balance < 100
+                                      log.current_balance < 200
                                         ? "text-red-500"
-                                        : log.current_balance < 200
-                                          ? "text-yellow-400"
-                                          : "text-white",
+                                        : "text-white",
                                     )}
                                   >
                                     ₹{log.current_balance.toFixed(2)}
                                   </span>
                                 </td>
-
-                                {/* Usage Charge */}
-                                <td className="px-6 py-4 text-right">
-                                  <span
-                                    className={cn(
-                                      "font-semibold",
-                                      log.usage_charge > 15
-                                        ? "text-red-500"
-                                        : log.usage_charge > 8
-                                          ? "text-yellow-400"
-                                          : "text-green-400",
-                                    )}
-                                  >
-                                    {log.usage_charge !== null
-                                      ? log.usage_charge?.toFixed(2)
-                                      : "-"}
-                                  </span>
-                                </td>
-
-                                {/* Hours Gap */}
-                                <td className="px-6 py-4 text-right">
-                                  <span
-                                    className={cn(
-                                      "font-semibold",
-                                      log.hours_gap > 12
-                                        ? "text-red-500"
-                                        : log.hours_gap > 6
-                                          ? "text-yellow-400"
-                                          : "text-green-400",
-                                    )}
-                                  >
-                                    {log.hours_gap !== null
-                                      ? log.hours_gap?.toFixed(2)
-                                      : "-"}
+                                <td className="px-4 md:px-6 py-4 text-right">
+                                  <span className="text-green-400">
+                                    {log.usage_charge?.toFixed(2) ?? "-"}
                                   </span>
                                 </td>
                               </motion.tr>
                             );
                           })}
-
-                          {/* Empty State */}
-                          {logs.length === 0 && (
-                            <tr>
-                              <td
-                                colSpan={7}
-                                className="px-6 py-20 text-center"
-                              >
-                                <div className="flex flex-col items-center gap-3 opacity-20">
-                                  <Database className="w-10 h-10" />
-                                  <p className="font-mono text-[10px] uppercase tracking-[0.2em]">
-                                    No sync recordings found
-                                  </p>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
                         </AnimatePresence>
                       </tbody>
                     </table>
@@ -495,144 +459,53 @@ export default function App() {
               </div>
             </>
           ) : (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col overflow-hidden shadow-xl max-w-6xl mx-auto">
-              {/* Header */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col overflow-hidden shadow-xl">
               <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
                 <div className="flex items-center gap-2">
                   <History className="w-4 h-4 text-emerald-500" />
                   <h3 className="text-xs font-bold text-white uppercase tracking-widest">
-                    Daily Energy History
+                    Daily History
                   </h3>
                 </div>
-                <span className="text-[10px] text-zinc-600 font-mono uppercase">
-                  Last {history.length} Days
-                </span>
               </div>
 
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  {/* Head */}
+              <div className="overflow-x-auto scrollbar-hide">
+                <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
                     <tr className="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800 bg-zinc-950/20">
                       <th className="px-6 py-4 font-semibold">Date</th>
                       <th className="px-6 py-4 font-semibold text-right">
-                        Grid (kWh)
+                        Grid
                       </th>
-                      <th className="px-6 py-4 font-semibold text-right">
-                        DG (kWh)
-                      </th>
-                      <th className="px-6 py-4 font-semibold text-right">
-                        Opening
-                      </th>
+                      <th className="px-6 py-4 font-semibold text-right">DG</th>
                       <th className="px-6 py-4 font-semibold text-right">
                         Closing
                       </th>
                       <th className="px-6 py-4 font-semibold text-right">
-                        Charge (₹)
+                        Daily Charge
                       </th>
                     </tr>
                   </thead>
-
-                  {/* Body */}
                   <tbody className="text-[12px] font-mono divide-y divide-zinc-800/50">
-                    <AnimatePresence mode="popLayout">
-                      {history.map((day, index) => {
-                        const prev = history[index + 1];
-
-                        const balanceTrend = getTrend(
-                          day.closing_balance,
-                          prev?.closing_balance,
-                        );
-
-                        return (
-                          <motion.tr
-                            key={day.date}
-                            className="hover:bg-zinc-800/40 transition-colors group border-b border-zinc-800/30"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                          >
-                            {/* Date */}
-                            <td className="px-6 py-4 text-zinc-400 group-hover:text-zinc-200 font-sans font-medium">
-                              {format(new Date(day.date), "MMM dd, yyyy")}
-                            </td>
-
-                            {/* Grid */}
-                            <td className="px-6 py-4 text-right text-emerald-400">
-                              {day.total_grid > 0
-                                ? `+${day.total_grid.toFixed(2)}`
-                                : "0.00"}
-                            </td>
-
-                            {/* DG */}
-                            <td className="px-6 py-4 text-right text-amber-400">
-                              {day.total_dg > 0
-                                ? `+${day.total_dg.toFixed(2)}`
-                                : "0.00"}
-                            </td>
-
-                            {/* Opening Balance */}
-                            <td className="px-6 py-4 text-right text-zinc-400">
-                              { day.opening_balance !== null ? day.opening_balance.toFixed(2) : "-"}
-                            </td>
-
-                            {/* Closing Balance + Trend */}
-                            <td className="px-6 py-4 text-right">
-                              <span
-                                className={cn(
-                                  "font-bold inline-flex items-center gap-1",
-                                  day.closing_balance < 100
-                                    ? "text-red-500"
-                                    : day.closing_balance < 200
-                                      ? "text-yellow-400"
-                                      : "text-white",
-                                )}
-                              >
-                                { day.closing_balance !== null ? day.closing_balance.toFixed(2) : "-"}
-                                {balanceTrend === "up" && (
-                                  <span className="text-green-400">↑</span>
-                                )}
-                                {balanceTrend === "down" && (
-                                  <span className="text-red-500">↓</span>
-                                )}
-                              </span>
-                            </td>
-
-                            {/* Daily Charge */}
-                            <td className="px-6 py-4 text-right">
-                              { day.daily_charge !== null
-                                && <span
-                                      className={cn(
-                                        "font-semibold",
-                                        day.daily_charge > 20
-                                          ? "text-red-500"
-                                          : day.daily_charge > 10
-                                            ? "text-yellow-400"
-                                            : "text-green-400",
-                                      )}
-                                    > 
-                                { day.daily_charge !== null ? day.daily_charge.toFixed(2) : "-"}
-                              </span>
-                            }
-                            </td>
-                          </motion.tr>
-                        );
-                      })}
-
-                      {/* Empty State */}
-                      {history.length === 0 && (
-                        <tr>
-                          <td colSpan={6} className="px-6 py-20 text-center">
-                            <div className="flex flex-col items-center gap-3 opacity-20">
-                              <Database className="w-10 h-10" />
-                              <p className="font-mono text-[10px] uppercase tracking-[0.2em]">
-                                No history recordings found
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </AnimatePresence>
+                    {history.map((day) => (
+                      <tr key={day.date} className="hover:bg-zinc-800/40">
+                        <td className="px-6 py-4 text-zinc-400">
+                          {format(new Date(day.date), "MMM dd, yyyy")}
+                        </td>
+                        <td className="px-6 py-4 text-right text-emerald-400">
+                          +{day.total_grid.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-right text-amber-400">
+                          +{day.total_dg.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-right text-white font-bold">
+                          ₹{day.closing_balance.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-right text-green-400">
+                          ₹{day.daily_charge?.toFixed(2) ?? "-"}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -666,73 +539,29 @@ function StatCard({
   return (
     <motion.div
       className={cn(
-        "bg-zinc-900 border border-zinc-800 p-6 rounded-xl flex flex-col justify-between shadow-lg relative group overflow-hidden",
+        "bg-zinc-900 border border-zinc-800 p-4 md:p-6 rounded-xl flex flex-col justify-between shadow-lg relative group overflow-hidden",
         isHighlighted && "ring-1 ring-emerald-500/30",
       )}
-      whileHover={{ y: -4, borderColor: "rgba(255,255,255,0.1)" }}
+      whileHover={{ y: -4 }}
     >
-      <div
-        className={cn(
-          "absolute top-0 right-0 w-32 h-32 blur-[80px] opacity-[0.03] transition-opacity group-hover:opacity-[0.06]",
-          color === "emerald" ? "bg-emerald-500" : "bg-amber-500",
-        )}
-      />
-
-      <div>
-        <div className="flex justify-between items-center mb-4">
-          <span
-            className={cn(
-              "text-[10px] uppercase tracking-[0.2em] font-bold",
-              isHighlighted
-                ? "text-emerald-400"
-                : "text-zinc-500 group-hover:text-zinc-400 transition-colors",
-            )}
-          >
-            {title}
-          </span>
-          <div className="text-zinc-600 group-hover:text-zinc-400 transition-colors">
-            {icon}
-          </div>
-        </div>
-        <h2 className="text-4xl font-bold text-white mt-1 font-mono tracking-tighter">
-          {value}
-          <span
-            className={cn(
-              "text-lg font-sans font-medium ml-1",
-              color === "emerald" ? "text-emerald-500/80" : "text-amber-500/80",
-            )}
-          >
-            {unit}
-          </span>
-        </h2>
+      <div className="flex justify-between items-center mb-2">
+        <span
+          className={cn(
+            "text-[9px] uppercase tracking-widest font-bold",
+            isHighlighted ? "text-emerald-400" : "text-zinc-500",
+          )}
+        >
+          {title}
+        </span>
+        <div className="text-zinc-600">{icon}</div>
       </div>
-
-      <div className="mt-6">
-        {progress !== undefined ? (
-          <>
-            <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                className={cn(
-                  "h-full",
-                  color === "emerald" ? "bg-emerald-500" : "bg-amber-500",
-                )}
-              />
-            </div>
-            <p className="mt-3 text-[10px] text-zinc-500 font-mono uppercase tracking-widest">
-              {subtitle}
-            </p>
-          </>
-        ) : (
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-widest font-mono">
-            <span className="text-zinc-600">Sync Status</span>
-            <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded ring-1 ring-emerald-500/20">
-              {subtitle}
-            </span>
-          </div>
-        )}
-      </div>
+      <h2 className="text-2xl md:text-3xl font-bold text-white font-mono">
+        {value}
+        <span className="text-sm ml-1 opacity-50">{unit}</span>
+      </h2>
+      <p className="mt-4 text-[9px] text-zinc-500 font-mono uppercase tracking-widest">
+        {subtitle}
+      </p>
     </motion.div>
   );
 }
